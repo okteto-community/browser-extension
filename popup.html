@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Okteto</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon48.png" alt="Okteto" class="logo" />
+      <span class="title">Okteto</span>
+      <button class="gear-btn" id="settings-toggle" title="Settings" aria-label="Toggle settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </header>
+
+    <!-- Settings panel -->
+    <section class="settings-panel" id="settings-panel" hidden>
+      <div class="field">
+        <label for="instance-url">Okteto Instance URL</label>
+        <input type="url" id="instance-url" placeholder="https://okteto.example.com" spellcheck="false" />
+      </div>
+      <div class="field">
+        <label for="api-token">Personal Access Token</label>
+        <input type="password" id="api-token" placeholder="••••••••••••••••" spellcheck="false" />
+      </div>
+      <button class="btn-primary" id="save-settings">Save &amp; Load Spaces</button>
+      <div class="settings-error" id="settings-error" hidden></div>
+    </section>
+
+    <main id="main-panel">
+      <div class="field">
+        <label for="namespace-select">
+          Space
+          <button class="refresh-btn" id="refresh-btn" title="Refresh spaces" aria-label="Refresh spaces">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"/>
+              <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+            </svg>
+          </button>
+        </label>
+        <select id="namespace-select" disabled>
+          <option value="">— configure settings first —</option>
+        </select>
+        <div class="fetch-status" id="fetch-status" hidden></div>
+      </div>
+
+      <div class="field toggle-row">
+        <span>Inject header</span>
+        <label class="toggle" aria-label="Enable header injection">
+          <input type="checkbox" id="enabled-toggle" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <div class="status" id="status-box">
+        <span class="dot" id="status-dot"></span>
+        <span id="status-text">Inactive</span>
+      </div>
+
+      <div class="header-preview" id="header-preview" hidden>
+        <code id="header-value"></code>
+      </div>
+    </main>
+
+    <script src="api.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
