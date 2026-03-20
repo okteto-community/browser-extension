@@ -40,7 +40,7 @@ The Okteto icon will appear in your Chrome toolbar.
 2. Click the **gear icon** to open Settings.
 3. Enter your **Okteto Instance URL** (e.g. `https://okteto.example.com`).
 4. Enter your **Personal Access Token**.
-   You can generate one from your Okteto dashboard under **Settings → API Tokens**.
+   You can generate one from your Okteto dashboard under **Settings → Personal Access Tokens**.
 5. Click **Save & Load Spaces** — your available development environments will be loaded from the server.
 
 ---
