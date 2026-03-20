@@ -6,7 +6,7 @@ Thanks for your interest in contributing! This document covers everything you ne
 
 ## Prerequisites
 
-- [Node.js](https://nodejs.org/) 18+
+- [Node.js](https://nodejs.org/) 25+
 - [Google Chrome](https://www.google.com/chrome/) 88+
 - An Okteto instance with a valid Personal Access Token (for manual end-to-end testing)
 
