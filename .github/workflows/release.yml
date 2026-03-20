@@ -10,6 +10,10 @@ on:
         description: "Version tag (e.g. v1.2.3)"
         required: true
 
+permissions:
+  contents: write   # create releases and upload assets
+  actions: read     # read workflow run info (needed by softprops/action-gh-release)
+
 jobs:
   release:
     name: Build & Release
@@ -56,15 +60,18 @@ jobs:
         run: |
           TAG="${{ steps.version.outputs.tag }}"
           ZIP_NAME="okteto-extension-${TAG}.zip"
-          zip -r "${ZIP_NAME}" \
+          # Only include the files Chrome needs to load the extension.
+          # Explicitly listed so nothing unintended (node_modules, tests,
+          # dot-files, dev config) ever ends up in the release asset.
+          zip "${ZIP_NAME}" \
             manifest.json \
             background.js \
-            popup.js \
             popup.html \
             popup.css \
-            api.js \
-            icons/
-          echo "zip_name=${ZIP_NAME}" >> "$GITHUB_ENV"
+            popup.js \
+            api.js
+          zip -r "${ZIP_NAME}" icons/
+          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
           echo "Packaged: ${ZIP_NAME}"
           unzip -l "${ZIP_NAME}"
 
@@ -74,11 +81,11 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "Okteto Extension ${{ steps.version.outputs.tag }}"
           generate_release_notes: true
-          files: ${{ env.zip_name }}
+          files: ${{ env.ZIP_NAME }}
           body: |
             ## Installation
 
-            1. Download **`${{ env.zip_name }}`** from the assets below.
+            1. Download **`${{ env.ZIP_NAME }}`** from the assets below.
             2. Unzip the file.
             3. Open Chrome and go to `chrome://extensions`.
             4. Enable **Developer mode** (top-right toggle).
