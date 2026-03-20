@@ -8,27 +8,13 @@ A Chrome extension that injects a `baggage: okteto-divert=<namespace>` header in
 
 ## Installation
 
-Chrome extensions in development are loaded as _unpacked_ extensions — no Chrome Web Store required.
+### Download the latest release
 
-### 1. Get the files
-
-Clone or download this repository to your machine:
-
-```bash
-git clone https://github.com/okteto/okteto-chrome-extension.git
-```
-
-### 2. Open Chrome Extensions
-
-Navigate to `chrome://extensions` in your browser.
-
-### 3. Enable Developer Mode
-
-Toggle **Developer mode** on (top-right corner of the Extensions page).
-
-### 4. Load the extension
-
-Click **Load unpacked** and select the folder containing `manifest.json` (the root of this repository).
+1. Go to the [Releases](https://github.com/okteto-community/browser-extension/releases) page and download the latest `okteto-extension-vX.Y.Z.zip`.
+2. Unzip the file.
+3. Open Chrome and navigate to `chrome://extensions`.
+4. Enable **Developer mode** (top-right toggle).
+5. Click **Load unpacked** and select the unzipped folder.
 
 The Okteto icon will appear in your Chrome toolbar.
 
@@ -57,16 +43,13 @@ The Okteto icon will appear in your Chrome toolbar.
 
 ---
 
-## Running tests
-
-```bash
-npm install
-npm test
-```
-
----
-
 ## Requirements
 
 - Google Chrome 88+ (Manifest V3 support)
 - An Okteto instance with a valid Personal Access Token
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, how to run tests, and how to publish a release.
