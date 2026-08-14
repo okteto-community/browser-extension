@@ -12,7 +12,6 @@ on:
 
 permissions:
   contents: write   # create releases and upload assets
-  actions: read     # read workflow run info (needed by softprops/action-gh-release)
 
 jobs:
   release:
@@ -20,45 +19,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Resolve and validate version
+        id: version
+        env:
+          # Never interpolate ${{ }} into a shell body: a crafted dispatch input
+          # would run as code in a job that can write to the repository.
+          INPUT_TAG: ${{ inputs.tag }}
+          REF_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="${INPUT_TAG:-$REF_TAG}"
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Tag '$TAG' must be a plain semver tag like v1.2.3 (pre-release tags produce a manifest Chrome cannot load)."
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # Release exactly what the tag points at, not whatever the workflow
+          # happened to be dispatched from.
+          ref: ${{ steps.version.outputs.tag }}
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: "25"
+          node-version: "22"
           cache: "npm"
 
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint
+        run: npm run lint
+
       - name: Run tests
         run: npm test
 
-      - name: Resolve version
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-          else
-            TAG="${GITHUB_REF_NAME}"
-          fi
-          # Strip leading "v" to get plain semver (e.g. 1.2.3)
-          VERSION="${TAG#v}"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-
       - name: Patch manifest.json version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          # Replace "version": "x.y.z" with the release version
-          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" manifest.json
-          echo "manifest.json version set to ${VERSION}"
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
+            manifest.version = process.env.VERSION;
+            fs.writeFileSync("manifest.json", JSON.stringify(manifest, null, 2) + "\n");
+          '
           grep '"version"' manifest.json
 
+      - name: Validate manifest
+        run: npm run validate:manifest
+
       - name: Package extension
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
+          set -euo pipefail
           ZIP_NAME="okteto-extension-${TAG}.zip"
           # Only include the files Chrome needs to load the extension.
           # Explicitly listed so nothing unintended (node_modules, tests,
@@ -71,25 +91,36 @@ jobs:
             popup.js \
             api.js
           zip -r "${ZIP_NAME}" icons/
-          echo "ZIP_NAME=${ZIP_NAME}" >> "$GITHUB_ENV"
-          echo "Packaged: ${ZIP_NAME}"
+          sha256sum "${ZIP_NAME}" | tee "${ZIP_NAME}.sha256"
+          {
+            echo "ZIP_NAME=${ZIP_NAME}"
+            echo "ZIP_SHA256=$(cut -d' ' -f1 < "${ZIP_NAME}.sha256")"
+          } >> "$GITHUB_ENV"
           unzip -l "${ZIP_NAME}"
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: "Okteto Extension ${{ steps.version.outputs.tag }}"
           generate_release_notes: true
-          files: ${{ env.ZIP_NAME }}
+          files: |
+            ${{ env.ZIP_NAME }}
+            ${{ env.ZIP_NAME }}.sha256
           body: |
             ## Installation
 
             1. Download **`${{ env.ZIP_NAME }}`** from the assets below.
-            2. Unzip the file.
-            3. Open Chrome and go to `chrome://extensions`.
-            4. Enable **Developer mode** (top-right toggle).
-            5. Click **Load unpacked** and select the unzipped folder.
+            2. Verify the download: `sha256sum -c ${{ env.ZIP_NAME }}.sha256`
+               (expected `${{ env.ZIP_SHA256 }}`).
+            3. Unzip the file.
+            4. Open Chrome and go to `chrome://extensions`.
+            5. Enable **Developer mode** (top-right toggle).
+            6. Click **Load unpacked** and select the unzipped folder.
+
+            On first use, open the popup's settings and enter your instance URL,
+            token, and the domains the `baggage` header should be sent to.
+            Chrome will ask for access to those domains only.
 
             ---
             *Release notes are auto-generated from commits since the last release.*

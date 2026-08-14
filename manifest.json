@@ -3,8 +3,9 @@
   "name": "Okteto",
   "version": "1.0.0",
   "description": "Injects baggage header for Okteto namespace diversion",
-  "permissions": ["declarativeNetRequest", "storage"],
-  "host_permissions": ["<all_urls>"],
+  "minimum_chrome_version": "102",
+  "permissions": ["declarativeNetRequestWithHostAccess", "storage"],
+  "optional_host_permissions": ["*://*/*"],
   "background": {
     "service_worker": "background.js"
   },

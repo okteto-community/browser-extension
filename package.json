@@ -3,17 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "lint": "eslint .",
+    "validate:manifest": "node scripts/validate-manifest.js"
   },
   "engines": {
-    "node": ">=25"
+    "node": ">=20"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^10.8.1",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0"
   },
   "jest": {
     "testEnvironment": "node",
-    "testMatch": ["**/tests/**/*.test.js"]
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ]
   }
 }

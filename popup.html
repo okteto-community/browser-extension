@@ -26,23 +26,30 @@
       </div>
       <div class="field">
         <label for="api-token">Personal Access Token</label>
-        <input type="password" id="api-token" placeholder="••••••••••••••••" spellcheck="false" />
+        <input type="password" id="api-token" placeholder="••••••••••••••••" spellcheck="false" autocomplete="off" />
+        <p class="hint" id="token-hint" hidden>A token is saved. Leave blank to keep it.</p>
+      </div>
+      <div class="field">
+        <label for="domains">Domains to inject into</label>
+        <input type="text" id="domains" placeholder="okteto.example.com" spellcheck="false" autocomplete="off" />
+        <p class="hint">Comma separated. Subdomains are included. The header is never sent anywhere else.</p>
       </div>
       <button class="btn-primary" id="save-settings">Save &amp; Load Spaces</button>
+      <button class="btn-secondary" id="clear-settings">Clear saved credentials</button>
       <div class="settings-error" id="settings-error" hidden></div>
     </section>
 
     <main id="main-panel">
       <div class="field">
-        <label for="namespace-select">
-          Space
+        <div class="field-label">
+          <label for="namespace-select">Space</label>
           <button class="refresh-btn" id="refresh-btn" title="Refresh spaces" aria-label="Refresh spaces">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="23 4 23 10 17 10"/>
               <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
             </svg>
           </button>
-        </label>
+        </div>
         <select id="namespace-select" disabled>
           <option value="">— configure settings first —</option>
         </select>
