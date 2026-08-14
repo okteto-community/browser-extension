@@ -1,6 +1,6 @@
 ---
 name: testing-header-injection
-description: How to end-to-end test the Okteto browser extension's declarativeNetRequest baggage-header injection locally, without a real Okteto instance.
+description: How to end-to-end test the Okteto browser extension's declarativeNetRequest baggage-header injection, either with an offline fake-domain harness or against a real Okteto instance (demo.okteto.dev).
 ---
 
 # Testing the Okteto extension's header injection end to end
@@ -54,6 +54,47 @@ screenshots.
 - Toggling off, and **Clear saved credentials**, must leave
   `getDynamicRules() == []` and `permissions.getAll().origins == []`.
 
+## Real-instance harness (against a live Okteto instance)
+Use this when you must exercise the real https path and the real GraphQL API
+(the offline harness cannot). Verified against `demo.okteto.dev` with the
+`okteto` CLI 3.22.0.
+
+1. Authenticate the CLI. Bind the org secrets through the exec tool's `env`
+   (`OKTETO_CONTEXT`, `OKTETO_TOKEN`) so they never get printed:
+   ```bash
+   okteto context use "$OKTETO_CONTEXT" --token "$OKTETO_TOKEN"
+   okteto namespace create devin-baggage-test
+   ```
+2. Deploy the header-echo app in [`okteto-real/`](./okteto-real) next to this
+   skill: `okteto.yaml` applies `k8s.yaml`, which is a `ConfigMap` holding a
+   small Python `http.server` script (renders the received `baggage` header for
+   the document and serves `fetch('/echo')` returning `{"headers": {...}}` so
+   the XHR case is covered), a `Deployment` running `python:3.11-alpine`, and a
+   `Service` `echo` on port 8080 annotated
+   `dev.okteto.com/auto-ingress: "true"` — that annotation is what produces the
+   public endpoint.
+
+   ```bash
+   cd .agents/skills/testing-header-injection/okteto-real
+   okteto deploy --wait --namespace devin-baggage-test
+   ```
+3. Endpoint URL shape produced by auto-ingress:
+   `https://<service>-<namespace>.<instance-domain>` — e.g.
+   `https://echo-devin-baggage-test.demo.okteto.dev`. Note this is a
+   **subdomain of the instance domain**, which is exactly the customer
+   scenario. Sanity-check the ingress forwards arbitrary headers before
+   involving the browser:
+   ```bash
+   curl -s -H "baggage: probe=1" https://echo-devin-baggage-test.demo.okteto.dev/echo
+   ```
+4. Popup settings: Instance URL `https://demo.okteto.dev`, PAT = the token
+   (type it with `${OKTETO_TOKEN}` substitution so it is never logged), and
+   **leave the Domains field blank** so it derives to `demo.okteto.dev`.
+   Save & Load Spaces → Allow the host-permission prompt → the Space dropdown
+   fills with the real namespaces (proof the real GraphQL API answered).
+5. Teardown: `okteto namespace delete devin-baggage-test` (takes ~1-2 min;
+   run it with a long timeout, it is not instantaneous).
+
 ## Gotchas
 - After **Clear saved credentials**, re-saving the same domains may not
   re-prompt for host permissions within the same browsing session; verify
@@ -62,5 +103,17 @@ screenshots.
 - Chrome must be relaunched only if absolutely necessary; the unpacked
   extension survives reloads via the **Reload** button on the card.
 
+- Load the exact commit under test. If several branches/worktrees of the
+  extension exist on the box, check out the PR commit into its own directory
+  (e.g. `git worktree add /home/ubuntu/ext-under-test <sha>`) and load *that*
+  as unpacked — loading the wrong copy silently invalidates a whole recording.
+- To prove absence of the header on an unrelated https site without DevTools
+  trickery, browse `https://httpbin.org/headers`, which renders its own
+  received request headers as JSON.
+- `okteto namespace delete` can take a couple of minutes and streams progress;
+  background it and poll rather than assuming it hung.
+
 ## Devin Secrets Needed
-None — the harness replaces the Okteto instance; any dummy PAT works.
+- Offline harness: none — any dummy PAT works.
+- Real-instance harness: `OKTETO_CONTEXT` and `OKTETO_TOKEN` (org secrets),
+  bound via the exec tool's `env`, never echoed.
