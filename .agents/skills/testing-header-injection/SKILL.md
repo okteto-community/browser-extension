@@ -66,18 +66,19 @@ Use this when you must exercise the real https path and the real GraphQL API
    okteto namespace create devin-baggage-test
    ```
 2. Deploy the header-echo app in [`okteto-real/`](./okteto-real) next to this
-   skill: `okteto.yaml` applies `k8s.yaml`, which is a `ConfigMap` holding a
-   small Python `http.server` script (renders the received `baggage` header for
-   the document and serves `fetch('/echo')` returning `{"headers": {...}}` so
-   the XHR case is covered), a `Deployment` running `python:3.11-alpine`, and a
-   `Service` `echo` on port 8080 annotated
-   `dev.okteto.com/auto-ingress: "true"` — that annotation is what produces the
-   public endpoint.
-
+   skill:
    ```bash
    cd .agents/skills/testing-header-injection/okteto-real
    okteto deploy --wait --namespace devin-baggage-test
    ```
+   `okteto.yaml` builds `echo/` (a `python:3.11-alpine` image running
+   `echo/server.py`, which renders the received `baggage` header for the
+   document and serves `fetch('/echo')` returning `{"headers": {...}}` so the
+   XHR case is covered), then applies `k8s.yaml`. Okteto exports the built
+   image as `$OKTETO_BUILD_ECHO_IMAGE`, which the deploy step substitutes into
+   the manifest with `envsubst`. The `Service` carries
+   `dev.okteto.com/auto-ingress: "true"` — that annotation is what produces the
+   public endpoint.
 3. Endpoint URL shape produced by auto-ingress:
    `https://<service>-<namespace>.<instance-domain>` — e.g.
    `https://echo-devin-baggage-test.demo.okteto.dev`. Note this is a
