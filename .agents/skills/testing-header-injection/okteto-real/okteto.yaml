@@ -1,0 +1,8 @@
+build:
+  echo:
+    context: echo
+
+deploy:
+  - name: Deploy header echo app
+    command: |
+      envsubst < k8s.yaml | kubectl apply -f -
