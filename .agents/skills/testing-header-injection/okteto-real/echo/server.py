@@ -1,58 +1,53 @@
+"""Echoes the request headers it received, for the document and for an XHR.
+
+Used to verify which hosts the browser extension injects the baggage header
+into. See ../../SKILL.md.
+"""
+
 import json
+from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from string import Template
 
-PAGE = """<!doctype html><html><head><title>%(host)s</title>
-<style>body{font-family:system-ui;margin:24px;font-size:15px}
-h1{font-size:22px}
-.box{border:2px solid #888;border-radius:8px;padding:12px;margin:12px 0;white-space:pre-wrap;font-family:monospace;background:#f6f6f6}
-.yes{color:#0a7d28;font-weight:bold;font-size:20px}
-.no{color:#b00020;font-weight:bold;font-size:20px}
-</style></head><body>
-<h1>Host: %(host)s</h1>
-<h2>Top-level document (main_frame) request headers</h2>
-<div class="box">baggage header: <span class="%(cls)s">%(baggage)s</span></div>
-<details><summary>all document headers</summary><div class="box">%(all)s</div></details>
-<h2>XHR / fetch subresource (xmlhttprequest)</h2>
-<div class="box">baggage header: <span id="xhr" class="no">(loading...)</span></div>
-<details><summary>all xhr headers</summary><div class="box" id="xhrall"></div></details>
-<script>
-fetch('/echo').then(r=>r.json()).then(j=>{
-  var b = j.headers['baggage'] || '(ABSENT)';
-  var e = document.getElementById('xhr');
-  e.textContent = b;
-  e.className = b === '(ABSENT)' ? 'no' : 'yes';
-  document.getElementById('xhrall').textContent = JSON.stringify(j.headers, null, 2);
-});
-</script>
-</body></html>"""
+PAGE = Template(Path(__file__).with_name("index.html").read_text())
 
-class H(BaseHTTPRequestHandler):
+
+class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
 
-    def _headers(self):
+    def _received_headers(self):
         return {k.lower(): v for k, v in self.headers.items()}
 
-    def _send(self, body, ctype):
-        b = body.encode()
+    def _send(self, body, content_type):
+        payload = body.encode()
         self.send_response(200)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(b)))
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(payload)))
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.wfile.write(b)
+        self.wfile.write(payload)
 
     def do_GET(self):
-        h = self._headers()
-        if self.path.startswith("/echo"):
-            self._send(json.dumps({"headers": h}), "application/json")
-            return
-        bag = h.get("baggage", "(ABSENT)")
-        self._send(PAGE % {"host": self.headers.get("Host", "?"),
-                           "baggage": bag,
-                           "cls": "no" if bag == "(ABSENT)" else "yes",
-                           "all": json.dumps(h, indent=2)}, "text/html")
+        headers = self._received_headers()
 
-    def log_message(self, *a):
+        if self.path.startswith("/echo"):
+            self._send(json.dumps({"headers": headers}), "application/json")
+            return
+
+        baggage = headers.get("baggage", "(ABSENT)")
+        self._send(
+            PAGE.substitute(
+                host=escape(self.headers.get("Host", "?")),
+                baggage=escape(baggage),
+                cls="no" if baggage == "(ABSENT)" else "yes",
+                all=escape(json.dumps(headers, indent=2)),
+            ),
+            "text/html",
+        )
+
+    def log_message(self, *args):
         pass
 
-ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+
+ThreadingHTTPServer(("0.0.0.0", 8080), Handler).serve_forever()

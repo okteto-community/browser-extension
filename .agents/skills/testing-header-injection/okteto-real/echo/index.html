@@ -1,0 +1,50 @@
+<!doctype html>
+<html>
+  <head>
+    <title>$host</title>
+    <style>
+      body { font-family: system-ui; margin: 24px; font-size: 15px }
+      h1 { font-size: 22px }
+      .box {
+        border: 2px solid #888;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 12px 0;
+        white-space: pre-wrap;
+        font-family: monospace;
+        background: #f6f6f6;
+      }
+      .yes { color: #0a7d28; font-weight: bold; font-size: 20px }
+      .no { color: #b00020; font-weight: bold; font-size: 20px }
+    </style>
+  </head>
+  <body>
+    <h1>Host: $host</h1>
+
+    <h2>Top-level document (main_frame) request headers</h2>
+    <div class="box">baggage header: <span class="$cls">$baggage</span></div>
+    <details>
+      <summary>all document headers</summary>
+      <div class="box">$all</div>
+    </details>
+
+    <h2>XHR / fetch subresource (xmlhttprequest)</h2>
+    <div class="box">baggage header: <span id="xhr" class="no">(loading...)</span></div>
+    <details>
+      <summary>all xhr headers</summary>
+      <div class="box" id="xhrall"></div>
+    </details>
+
+    <script>
+      fetch("/echo")
+        .then((r) => r.json())
+        .then((j) => {
+          const b = j.headers["baggage"] || "(ABSENT)";
+          const e = document.getElementById("xhr");
+          e.textContent = b;
+          e.className = b === "(ABSENT)" ? "no" : "yes";
+          document.getElementById("xhrall").textContent = JSON.stringify(j.headers, null, 2);
+        });
+    </script>
+  </body>
+</html>

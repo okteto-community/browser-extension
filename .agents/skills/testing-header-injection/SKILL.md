@@ -72,9 +72,10 @@ Use this when you must exercise the real https path and the real GraphQL API
    okteto deploy --wait --namespace devin-baggage-test
    ```
    `okteto.yaml` builds `echo/` (a `python:3.11-alpine` image running
-   `echo/server.py`, which renders the received `baggage` header for the
-   document and serves `fetch('/echo')` returning `{"headers": {...}}` so the
-   XHR case is covered), then applies `k8s.yaml`. Okteto exports the built
+   `echo/server.py`, which renders `echo/index.html` — a `string.Template`
+   page — with the received `baggage` header for the document, and serves
+   `fetch('/echo')` returning `{"headers": {...}}` so the XHR case is
+   covered), then applies `k8s.yaml`. Okteto exports the built
    image as `$OKTETO_BUILD_ECHO_IMAGE`, which the deploy step substitutes into
    the manifest with `envsubst`. The `Service` carries
    `dev.okteto.com/auto-ingress: "true"` — that annotation is what produces the
