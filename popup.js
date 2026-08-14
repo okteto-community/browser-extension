@@ -14,7 +14,12 @@ const api =
         parseDomains,
         originPatternsFor,
         permissionOriginsFor,
+        mergeManagedConfig,
       };
+
+// Administrator policy, read once per popup open. Empty when the browser is
+// unmanaged or the extension has no policy set.
+let managed = {};
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
 const ui = {};
@@ -35,6 +40,7 @@ function bindDom() {
   ui.apiTokenInput     = document.getElementById("api-token");
   ui.tokenHint         = document.getElementById("token-hint");
   ui.domainsInput      = document.getElementById("domains");
+  ui.managedHint       = document.getElementById("managed-hint");
   ui.saveSettingsBtn   = document.getElementById("save-settings");
   ui.clearSettingsBtn  = document.getElementById("clear-settings");
   ui.settingsError     = document.getElementById("settings-error");
@@ -91,6 +97,19 @@ function setRefreshing(busy) {
 }
 
 // ── State ────────────────────────────────────────────────────────────────────
+/**
+ * Read the administrator policy. `chrome.storage.managed` is absent on old
+ * builds and rejects on unmanaged profiles, so neither is treated as an error.
+ * @returns {Promise<object>}
+ */
+async function readManagedConfig() {
+  try {
+    return (await chrome.storage.managed?.get(null)) || {};
+  } catch {
+    return {};
+  }
+}
+
 async function readState() {
   const state = await chrome.storage.local.get([
     "instanceUrl",
@@ -99,13 +118,24 @@ async function readState() {
     "enabled",
     "domains",
   ]);
+  const merged = api.mergeManagedConfig(managed, state);
   return {
-    instanceUrl: state.instanceUrl || "",
+    instanceUrl: merged.instanceUrl,
     token: state.token || "",
     namespace: state.namespace || "",
     enabled: !!state.enabled,
-    domains: state.domains || [],
+    domains: merged.domains,
+    locked: merged.locked,
   };
+}
+
+/** Reflect the policy in the settings fields: prefilled, and read-only when enforced. */
+function applyManagedToSettings(state) {
+  ui.instanceUrlInput.value = state.instanceUrl;
+  ui.domainsInput.value = state.domains.join(", ");
+  ui.instanceUrlInput.readOnly = state.locked.instanceUrl;
+  ui.domainsInput.readOnly = state.locked.domains;
+  ui.managedHint.hidden = !(state.locked.instanceUrl || state.locked.domains);
 }
 
 /**
@@ -177,11 +207,17 @@ async function onSaveSettings() {
   let instanceUrl;
   let domains;
   try {
-    instanceUrl = api.normalizeInstanceUrl(ui.instanceUrlInput.value);
+    // Enforced fields come from the policy, never from the DOM: a read-only
+    // input is only a UI affordance.
+    instanceUrl = stored.locked.instanceUrl
+      ? stored.instanceUrl
+      : api.normalizeInstanceUrl(ui.instanceUrlInput.value);
     const raw = ui.domainsInput.value.trim();
-    domains = raw
-      ? api.parseDomains(raw)
-      : api.defaultDomainsFor(instanceUrl);
+    domains = stored.locked.domains
+      ? stored.domains
+      : raw
+        ? api.parseDomains(raw)
+        : api.defaultDomainsFor(instanceUrl);
   } catch (err) {
     showSettingsError(err.message);
     return false;
@@ -255,10 +291,10 @@ async function onClearSettings() {
     }
   }
 
-  ui.instanceUrlInput.value = "";
   ui.apiTokenInput.value = "";
-  ui.domainsInput.value = "";
   ui.tokenHint.hidden = true;
+  // Policy-provided values survive a clear; they are not the user's to remove.
+  applyManagedToSettings(await readState());
   ui.toggle.checked = false;
   populateSelect([], "");
   ui.select.disabled = true;
@@ -309,10 +345,11 @@ async function init() {
   bindDom();
   wireEvents();
 
+  managed = await readManagedConfig();
+
   const state = await readState();
   ui.toggle.checked = state.enabled;
-  ui.instanceUrlInput.value = state.instanceUrl;
-  ui.domainsInput.value = state.domains.join(", ");
+  applyManagedToSettings(state);
   ui.tokenHint.hidden = !state.token;
 
   if (!state.instanceUrl || !state.token) {
@@ -328,7 +365,14 @@ async function init() {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { init, applyState, loadSpaces, onSaveSettings, onClearSettings };
+  module.exports = {
+    init,
+    applyState,
+    loadSpaces,
+    onSaveSettings,
+    onClearSettings,
+    readManagedConfig,
+  };
 } else {
   init();
 }

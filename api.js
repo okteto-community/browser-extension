@@ -115,6 +115,62 @@ function permissionOriginsFor(instanceUrl, domains) {
 }
 
 /**
+ * Merge an administrator's managed (policy) configuration with what the user
+ * saved locally.
+ *
+ * Policy values are validated the same way user input is, so a malformed
+ * policy is ignored rather than silently widening the injection scope. When
+ * `allowUserOverride` is false the policy value wins and the popup locks the
+ * field; otherwise the policy only supplies the initial value.
+ *
+ * @param {{instanceUrl?: string, domains?: string[], allowUserOverride?: boolean}} managed
+ * @param {{instanceUrl?: string, domains?: string[]}} local
+ * @returns {{instanceUrl: string, domains: string[], locked: {instanceUrl: boolean, domains: boolean}}}
+ */
+function mergeManagedConfig(managed, local) {
+  const policy = managed || {};
+  const saved = local || {};
+  const lockable = policy.allowUserOverride === false;
+
+  let policyUrl = "";
+  if (policy.instanceUrl) {
+    try {
+      policyUrl = normalizeInstanceUrl(policy.instanceUrl);
+    } catch {
+      policyUrl = "";
+    }
+  }
+
+  let policyDomains = [];
+  if (Array.isArray(policy.domains) && policy.domains.length) {
+    try {
+      policyDomains = parseDomains(policy.domains.join(","));
+    } catch {
+      policyDomains = [];
+    }
+  }
+
+  const savedDomains = Array.isArray(saved.domains) ? saved.domains : [];
+
+  return {
+    instanceUrl:
+      policyUrl && (lockable || !saved.instanceUrl)
+        ? policyUrl
+        : saved.instanceUrl || policyUrl || "",
+    domains:
+      policyDomains.length && (lockable || !savedDomains.length)
+        ? policyDomains
+        : savedDomains.length
+          ? savedDomains
+          : policyDomains,
+    locked: {
+      instanceUrl: lockable && !!policyUrl,
+      domains: lockable && policyDomains.length > 0,
+    },
+  };
+}
+
+/**
  * Fetch the list of space IDs from an Okteto instance.
  * @param {string} instanceUrl  e.g. "https://okteto.example.com"
  * @param {string} token        Personal access token
@@ -204,6 +260,7 @@ if (typeof module !== "undefined") {
     parseDomains,
     originPatternsFor,
     permissionOriginsFor,
+    mergeManagedConfig,
     SPACES_QUERY,
     FETCH_TIMEOUT_MS,
   };

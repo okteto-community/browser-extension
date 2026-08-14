@@ -32,6 +32,13 @@ The Okteto icon will appear in your Chrome toolbar.
 
 Use **Clear saved credentials** to remove the token and revoke the domain access again.
 
+### Preconfigured setups
+
+If your organization deploys the extension by policy, the instance URL and
+domains may already be filled in (and read-only) — you only need to enter your
+token. See [docs/managed-configuration.md](docs/managed-configuration.md) for
+the administrator side.
+
 ---
 
 ## Usage

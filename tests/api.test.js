@@ -11,6 +11,7 @@ const {
   parseDomains,
   originPatternsFor,
   permissionOriginsFor,
+  mergeManagedConfig,
   SPACES_QUERY,
 } = require("../api");
 
@@ -296,6 +297,78 @@ describe("permissionOriginsFor", () => {
       "okteto.example.com",
     ]);
     expect(origins.filter((o) => o === "https://okteto.example.com/*")).toHaveLength(1);
+  });
+});
+
+// ── mergeManagedConfig ───────────────────────────────────────────────────────
+
+describe("mergeManagedConfig", () => {
+  const POLICY = {
+    instanceUrl: "https://okteto.corp.example",
+    domains: ["apps.corp.example"],
+  };
+
+  test("returns the local state untouched when there is no policy", () => {
+    expect(
+      mergeManagedConfig({}, { instanceUrl: "https://a.example", domains: ["a.example"] })
+    ).toEqual({
+      instanceUrl: "https://a.example",
+      domains: ["a.example"],
+      locked: { instanceUrl: false, domains: false },
+    });
+  });
+
+  test("seeds an unconfigured profile from the policy", () => {
+    expect(mergeManagedConfig(POLICY, {})).toEqual({
+      instanceUrl: "https://okteto.corp.example",
+      domains: ["apps.corp.example"],
+      locked: { instanceUrl: false, domains: false },
+    });
+  });
+
+  test("lets the user's saved settings win by default", () => {
+    const merged = mergeManagedConfig(POLICY, {
+      instanceUrl: "https://mine.example",
+      domains: ["mine.example"],
+    });
+    expect(merged.instanceUrl).toBe("https://mine.example");
+    expect(merged.domains).toEqual(["mine.example"]);
+  });
+
+  test("enforces and locks the policy when overrides are disallowed", () => {
+    expect(
+      mergeManagedConfig(
+        { ...POLICY, allowUserOverride: false },
+        { instanceUrl: "https://mine.example", domains: ["mine.example"] }
+      )
+    ).toEqual({
+      instanceUrl: "https://okteto.corp.example",
+      domains: ["apps.corp.example"],
+      locked: { instanceUrl: true, domains: true },
+    });
+  });
+
+  test("ignores policy values that would not pass user validation", () => {
+    const merged = mergeManagedConfig(
+      {
+        instanceUrl: "http://okteto.corp.example",
+        domains: ["not_a_domain!"],
+        allowUserOverride: false,
+      },
+      { instanceUrl: "https://mine.example", domains: ["mine.example"] }
+    );
+    expect(merged.instanceUrl).toBe("https://mine.example");
+    expect(merged.domains).toEqual(["mine.example"]);
+    expect(merged.locked).toEqual({ instanceUrl: false, domains: false });
+  });
+
+  test("normalizes policy values the same way the popup does", () => {
+    const merged = mergeManagedConfig(
+      { instanceUrl: "https://okteto.corp.example/", domains: ["https://Apps.Corp.Example/x"] },
+      {}
+    );
+    expect(merged.instanceUrl).toBe("https://okteto.corp.example");
+    expect(merged.domains).toEqual(["apps.corp.example"]);
   });
 });
 

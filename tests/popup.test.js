@@ -13,6 +13,7 @@ const HTML = fs.readFileSync(path.join(__dirname, "..", "popup.html"), "utf8");
 
 let api;
 let storedData;
+let managedData;
 let sendMessage;
 let permissionsRequest;
 let permissionsRemove;
@@ -20,6 +21,7 @@ let popup;
 
 function setupChrome() {
   storedData = {};
+  managedData = {};
   sendMessage = jest.fn().mockResolvedValue({ ok: true });
   permissionsRequest = jest.fn().mockResolvedValue(true);
   permissionsRemove = jest.fn().mockResolvedValue(true);
@@ -41,6 +43,7 @@ function setupChrome() {
           return Promise.resolve();
         }),
       },
+      managed: { get: jest.fn(() => Promise.resolve(managedData)) },
     },
     runtime: { sendMessage },
     permissions: { request: permissionsRequest, remove: permissionsRemove },
@@ -341,5 +344,82 @@ describe("clearing settings", () => {
     expect($("api-token").value).toBe("");
     expect($("enabled-toggle").checked).toBe(false);
     expect($("settings-panel").hidden).toBe(false);
+  });
+
+  test("keeps enforced policy values in the fields", async () => {
+    managedData = {
+      instanceUrl: "https://okteto.corp.example",
+      domains: ["apps.corp.example"],
+      allowUserOverride: false,
+    };
+    storedData = { ...SETTINGS };
+    mockSpaces(["movies-catalog"]);
+    await popup.init();
+
+    await popup.onClearSettings();
+
+    expect($("instance-url").value).toBe("https://okteto.corp.example");
+    expect($("domains").value).toBe("apps.corp.example");
+  });
+});
+
+// ── managed (policy) configuration ──────────────────────────────────────────
+
+describe("managed configuration", () => {
+  test("prefills the settings but leaves them editable by default", async () => {
+    managedData = {
+      instanceUrl: "https://okteto.corp.example",
+      domains: ["apps.corp.example", "api.corp.example"],
+    };
+
+    await popup.init();
+
+    expect($("instance-url").value).toBe("https://okteto.corp.example");
+    expect($("domains").value).toBe("apps.corp.example, api.corp.example");
+    expect($("instance-url").readOnly).toBe(false);
+    expect($("managed-hint").hidden).toBe(true);
+  });
+
+  test("locks the fields and ignores DOM edits when overrides are disallowed", async () => {
+    managedData = {
+      instanceUrl: "https://okteto.corp.example",
+      domains: ["apps.corp.example"],
+      allowUserOverride: false,
+    };
+    mockSpaces(["movies-catalog"]);
+
+    await popup.init();
+    expect($("instance-url").readOnly).toBe(true);
+    expect($("domains").readOnly).toBe(true);
+    expect($("managed-hint").hidden).toBe(false);
+
+    // A read-only input is a UI affordance only; the policy still wins.
+    $("instance-url").value = "https://evil.example.com";
+    $("domains").value = "evil.example.com";
+    $("api-token").value = "pat-123";
+    const saved = await popup.onSaveSettings();
+
+    expect(saved).toBe(true);
+    expect(storedData.instanceUrl).toBe("https://okteto.corp.example");
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ domains: ["apps.corp.example"] })
+    );
+  });
+
+  test("a locally saved instance wins when overrides are allowed", async () => {
+    managedData = { instanceUrl: "https://okteto.corp.example" };
+    storedData = { ...SETTINGS };
+    mockSpaces(["movies-catalog"]);
+
+    await popup.init();
+
+    expect($("instance-url").value).toBe(SETTINGS.instanceUrl);
+  });
+
+  test("survives a profile with no managed storage at all", async () => {
+    chrome.storage.managed.get.mockRejectedValue(new Error("not supported"));
+
+    await expect(popup.readManagedConfig()).resolves.toEqual({});
+    await expect(popup.init()).resolves.toBeUndefined();
   });
 });

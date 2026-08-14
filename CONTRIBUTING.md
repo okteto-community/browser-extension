@@ -69,6 +69,7 @@ npx jest --watch
 ├── popup.html           # Extension popup markup
 ├── popup.js             # Popup logic (settings, space selection, toggle)
 ├── popup.css            # Popup styles
+├── schema.json          # Managed-storage (admin policy) schema
 ├── icons/               # Extension icons (16px, 48px, 128px)
 ├── scripts/
 │   └── validate-manifest.js  # Manifest checks run in CI and at release time

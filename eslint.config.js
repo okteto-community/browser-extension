@@ -46,6 +46,7 @@ module.exports = [
         parseDomains: "readonly",
         originPatternsFor: "readonly",
         permissionOriginsFor: "readonly",
+        mergeManagedConfig: "readonly",
       },
     },
   },

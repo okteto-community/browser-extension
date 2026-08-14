@@ -49,6 +49,7 @@ if (manifest.permissions?.includes("declarativeNetRequest")) {
 for (const file of [
   manifest.background?.service_worker,
   manifest.action?.default_popup,
+  manifest.storage?.managed_schema,
   ...Object.values(manifest.icons || {}),
 ]) {
   if (file && !fs.existsSync(path.join(__dirname, "..", file))) {
