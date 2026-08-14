@@ -196,10 +196,36 @@ describe("saving settings", () => {
     await fillAndSave({ url: SETTINGS.instanceUrl, token: "pat-123" });
 
     expect(permissionsRequest).toHaveBeenCalledWith({
-      origins: ["*://okteto.example.com/*", "*://*.okteto.example.com/*"],
+      origins: [
+        "*://okteto.example.com/*",
+        "*://*.okteto.example.com/*",
+        "https://okteto.example.com/*",
+      ],
     });
     expect(sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ domains: ["okteto.example.com"] })
+    );
+  });
+
+  test("also requests the instance origin when the domains exclude it", async () => {
+    mockSpaces(["movies-catalog"]);
+
+    await fillAndSave({
+      url: SETTINGS.instanceUrl,
+      token: "pat-123",
+      domains: "apps.example.dev",
+    });
+
+    // Without the instance origin the GraphQL fetch would be blocked by CORS.
+    expect(permissionsRequest).toHaveBeenCalledWith({
+      origins: [
+        "*://apps.example.dev/*",
+        "*://*.apps.example.dev/*",
+        "https://okteto.example.com/*",
+      ],
+    });
+    expect(sendMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ domains: ["apps.example.dev"] })
     );
   });
 
@@ -305,7 +331,11 @@ describe("clearing settings", () => {
     expect(storedData.token).toBeUndefined();
     expect(storedData.instanceUrl).toBeUndefined();
     expect(permissionsRemove).toHaveBeenCalledWith({
-      origins: ["*://okteto.example.com/*", "*://*.okteto.example.com/*"],
+      origins: [
+        "*://okteto.example.com/*",
+        "*://*.okteto.example.com/*",
+        "https://okteto.example.com/*",
+      ],
     });
     expect($("instance-url").value).toBe("");
     expect($("api-token").value).toBe("");

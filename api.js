@@ -95,6 +95,26 @@ function originPatternsFor(domains) {
 }
 
 /**
+ * Every origin the extension needs access to: the configured domains (for the
+ * injection rule) plus the instance itself, whose GraphQL endpoint the popup
+ * fetches cross-origin — without host access that fetch is blocked by CORS,
+ * which happens as soon as the domains do not include the instance host.
+ * @param {string} instanceUrl
+ * @param {string[]} domains
+ * @returns {string[]}
+ */
+function permissionOriginsFor(instanceUrl, domains) {
+  const patterns = originPatternsFor(domains);
+  try {
+    const pattern = `${new URL(instanceUrl).origin}/*`;
+    if (!patterns.includes(pattern)) patterns.push(pattern);
+  } catch {
+    // An unparseable URL never reaches here; the domains alone are requested.
+  }
+  return patterns;
+}
+
+/**
  * Fetch the list of space IDs from an Okteto instance.
  * @param {string} instanceUrl  e.g. "https://okteto.example.com"
  * @param {string} token        Personal access token
@@ -183,6 +203,7 @@ if (typeof module !== "undefined") {
     defaultDomainsFor,
     parseDomains,
     originPatternsFor,
+    permissionOriginsFor,
     SPACES_QUERY,
     FETCH_TIMEOUT_MS,
   };

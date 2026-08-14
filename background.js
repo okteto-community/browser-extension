@@ -63,13 +63,39 @@ async function updateRule(enabled, namespace, domains = []) {
   });
 }
 
+/**
+ * The domains host access is still granted for. A rule listing a revoked domain
+ * would be installed but inert, leaving the stored state lying about the scope.
+ * @param {string[]} domains
+ * @returns {Promise<string[]>}
+ */
+async function grantedDomains(domains) {
+  if (!chrome.permissions?.contains) return domains;
+
+  const checks = await Promise.all(
+    domains.map((domain) =>
+      chrome.permissions
+        .contains({ origins: [`*://${domain}/*`, `*://*.${domain}/*`] })
+        .catch(() => false)
+    )
+  );
+  return domains.filter((_, i) => checks[i]);
+}
+
 async function applyStoredState() {
   const { enabled, namespace, domains } = await chrome.storage.local.get([
     "enabled",
     "namespace",
     "domains",
   ]);
-  await updateRule(!!enabled, namespace || null, domains || []);
+
+  const stored = domains || [];
+  const allowed = await grantedDomains(stored);
+  if (allowed.length !== stored.length) {
+    await chrome.storage.local.set({ domains: allowed });
+  }
+
+  await updateRule(!!enabled, namespace || null, allowed);
 }
 
 // Restore state on service worker startup
@@ -77,7 +103,7 @@ chrome.runtime.onInstalled.addListener(applyStoredState);
 chrome.runtime.onStartup.addListener(applyStoredState);
 
 // The rule only applies where host access was granted, so revoking a domain
-// must also shrink the rule.
+// shrinks both the rule and the stored domain list.
 if (chrome.permissions?.onRemoved) {
   chrome.permissions.onRemoved.addListener(applyStoredState);
 }

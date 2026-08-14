@@ -45,6 +45,7 @@ module.exports = [
         defaultDomainsFor: "readonly",
         parseDomains: "readonly",
         originPatternsFor: "readonly",
+        permissionOriginsFor: "readonly",
       },
     },
   },

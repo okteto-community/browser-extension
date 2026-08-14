@@ -13,6 +13,7 @@ const api =
         defaultDomainsFor,
         parseDomains,
         originPatternsFor,
+        permissionOriginsFor,
       };
 
 // ── DOM refs ────────────────────────────────────────────────────────────────
@@ -203,10 +204,11 @@ async function onSaveSettings() {
   ui.saveSettingsBtn.textContent = "Saving…";
 
   try {
-    // Host access must be granted before the rule can modify anything, and the
-    // request has to happen while the user gesture is still live.
+    // Host access must be granted before the rule can modify anything or the
+    // instance can be queried, and the request has to happen while the user
+    // gesture is still live.
     const granted = await chrome.permissions.request({
-      origins: api.originPatternsFor(domains),
+      origins: api.permissionOriginsFor(instanceUrl, domains),
     });
     if (!granted) {
       showSettingsError(
@@ -241,14 +243,13 @@ async function onSaveSettings() {
 }
 
 async function onClearSettings() {
-  const { domains } = await readState();
+  const { instanceUrl, domains } = await readState();
   await applyState(false, "", []);
   await chrome.storage.local.remove(["instanceUrl", "token"]);
-  if (domains.length) {
+  const origins = api.permissionOriginsFor(instanceUrl, domains);
+  if (origins.length) {
     try {
-      await chrome.permissions.remove({
-        origins: api.originPatternsFor(domains),
-      });
+      await chrome.permissions.remove({ origins });
     } catch {
       // Permission may already be gone; the rule is off either way.
     }

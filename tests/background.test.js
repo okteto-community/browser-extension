@@ -10,9 +10,11 @@ let addedRules  = [];
 let removedIds  = [];
 let updateCalls = [];
 let updateShouldFail = null;
+let revokedDomains = [];
 const messageListeners   = [];
 const installedListeners = [];
 const startupListeners   = [];
+const permissionRemovedListeners = [];
 
 global.chrome = {
   storage: {
@@ -43,6 +45,12 @@ global.chrome = {
     onStartup:   { addListener: (fn) => startupListeners.push(fn) },
     onMessage:   { addListener: (fn) => messageListeners.push(fn) },
   },
+  permissions: {
+    contains: jest.fn(({ origins }) =>
+      Promise.resolve(!revokedDomains.some((d) => origins.includes(`*://${d}/*`)))
+    ),
+    onRemoved: { addListener: (fn) => permissionRemovedListeners.push(fn) },
+  },
 };
 
 // Load the module after mocks are in place
@@ -60,6 +68,10 @@ function fireStartup() {
   return Promise.all(startupListeners.map((fn) => fn()));
 }
 
+function firePermissionRemoved() {
+  return Promise.all(permissionRemovedListeners.map((fn) => fn()));
+}
+
 function fireMessage(msg) {
   return new Promise((resolve) => {
     const handled = messageListeners.map((fn) => fn(msg, {}, resolve));
@@ -74,6 +86,7 @@ beforeEach(() => {
   removedIds = [];
   updateCalls = [];
   updateShouldFail = null;
+  revokedDomains = [];
   jest.clearAllMocks();
 });
 
@@ -117,6 +130,36 @@ describe("state restoration", () => {
     expect(addedRules[0].action.requestHeaders[0].value).toBe(
       "okteto-divert=okteto-admin"
     );
+  });
+});
+
+// ── revoked host access ──────────────────────────────────────────────────────
+
+describe("revoked host access", () => {
+  test("drops revoked domains from the rule and from storage", async () => {
+    storedData = {
+      enabled: true,
+      namespace: "movies-catalog",
+      domains: ["okteto.example.com", "apps.example.com"],
+    };
+    revokedDomains = ["apps.example.com"];
+
+    await firePermissionRemoved();
+
+    expect(addedRules).toHaveLength(1);
+    expect(addedRules[0].condition.requestDomains).toEqual(["okteto.example.com"]);
+    expect(storedData.domains).toEqual(["okteto.example.com"]);
+  });
+
+  test("removes the rule when access to every domain is revoked", async () => {
+    storedData = { enabled: true, namespace: "movies-catalog", domains: DOMAINS };
+    revokedDomains = [...DOMAINS];
+
+    await firePermissionRemoved();
+
+    expect(removedIds).toContain(1);
+    expect(addedRules).toHaveLength(0);
+    expect(storedData.domains).toEqual([]);
   });
 });
 

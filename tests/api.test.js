@@ -10,6 +10,7 @@ const {
   defaultDomainsFor,
   parseDomains,
   originPatternsFor,
+  permissionOriginsFor,
   SPACES_QUERY,
 } = require("../api");
 
@@ -276,6 +277,25 @@ describe("originPatternsFor", () => {
     expect(patterns).toHaveLength(4);
     expect(patterns).not.toContain("<all_urls>");
     expect(patterns.every((p) => p.includes(".com/"))).toBe(true);
+  });
+});
+
+describe("permissionOriginsFor", () => {
+  test("adds the instance origin to the configured domains", () => {
+    expect(
+      permissionOriginsFor("https://okteto.example.com", ["apps.example.dev"])
+    ).toEqual([
+      "*://apps.example.dev/*",
+      "*://*.apps.example.dev/*",
+      "https://okteto.example.com/*",
+    ]);
+  });
+
+  test("does not duplicate an already covered origin", () => {
+    const origins = permissionOriginsFor("https://okteto.example.com", [
+      "okteto.example.com",
+    ]);
+    expect(origins.filter((o) => o === "https://okteto.example.com/*")).toHaveLength(1);
   });
 });
 
