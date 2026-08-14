@@ -1,1 +1,7 @@
 node_modules/
+coverage/
+*.zip
+*.zip.sha256
+.env
+.env.*
+.DS_Store

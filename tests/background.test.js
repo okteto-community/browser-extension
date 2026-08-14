@@ -8,9 +8,11 @@
 let storedData = {};
 let addedRules  = [];
 let removedIds  = [];
-const messageListeners  = [];
+let updateCalls = [];
+let updateShouldFail = null;
+const messageListeners   = [];
 const installedListeners = [];
-const startupListeners  = [];
+const startupListeners   = [];
 
 global.chrome = {
   storage: {
@@ -27,7 +29,10 @@ global.chrome = {
     },
   },
   declarativeNetRequest: {
-    updateDynamicRules: jest.fn(({ addRules = [], removeRuleIds = [] }) => {
+    updateDynamicRules: jest.fn((options) => {
+      updateCalls.push(options);
+      if (updateShouldFail) return Promise.reject(new Error(updateShouldFail));
+      const { addRules = [], removeRuleIds = [] } = options;
       removeRuleIds.forEach((id) => removedIds.push(id));
       addRules.forEach((r) => addedRules.push(r));
       return Promise.resolve();
@@ -43,13 +48,9 @@ global.chrome = {
 // Load the module after mocks are in place
 require("../background");
 
-// ── helpers ───────────────────────────────────────────────────────────────────
+const DOMAINS = ["okteto.example.com"];
 
-function resetRuleTracking() {
-  addedRules.length  = 0;
-  removedIds.length  = 0;
-  chrome.declarativeNetRequest.updateDynamicRules.mockClear();
-}
+// ── helpers ───────────────────────────────────────────────────────────────────
 
 function fireInstalled() {
   return Promise.all(installedListeners.map((fn) => fn()));
@@ -61,20 +62,26 @@ function fireStartup() {
 
 function fireMessage(msg) {
   return new Promise((resolve) => {
-    messageListeners.forEach((fn) => fn(msg, {}, resolve));
+    const handled = messageListeners.map((fn) => fn(msg, {}, resolve));
+    // No listener kept the channel open → nothing will call sendResponse.
+    if (!handled.some((r) => r === true)) resolve(undefined);
   });
 }
 
 beforeEach(() => {
   storedData = {};
-  resetRuleTracking();
+  addedRules = [];
+  removedIds = [];
+  updateCalls = [];
+  updateShouldFail = null;
+  jest.clearAllMocks();
 });
 
-// ── onInstalled ───────────────────────────────────────────────────────────────
+// ── onInstalled / onStartup ──────────────────────────────────────────────────
 
-describe("onInstalled", () => {
-  test("removes existing rule and adds baggage rule when enabled", async () => {
-    storedData = { enabled: true, namespace: "movies-catalog" };
+describe("state restoration", () => {
+  test("onInstalled adds the baggage rule when enabled", async () => {
+    storedData = { enabled: true, namespace: "movies-catalog", domains: DOMAINS };
 
     await fireInstalled();
 
@@ -87,8 +94,13 @@ describe("onInstalled", () => {
     });
   });
 
-  test("removes rule only when disabled", async () => {
-    storedData = { enabled: false, namespace: "movies-catalog" };
+  test.each([
+    ["disabled",          { enabled: false, namespace: "movies-catalog", domains: DOMAINS }],
+    ["namespace missing", { enabled: true,  namespace: "",               domains: DOMAINS }],
+    ["domains missing",   { enabled: true,  namespace: "movies-catalog", domains: [] }],
+    ["domains unset",     { enabled: true,  namespace: "movies-catalog" }],
+  ])("removes the rule only when %s", async (_label, state) => {
+    storedData = state;
 
     await fireInstalled();
 
@@ -96,21 +108,8 @@ describe("onInstalled", () => {
     expect(addedRules).toHaveLength(0);
   });
 
-  test("removes rule only when namespace is missing", async () => {
-    storedData = { enabled: true, namespace: "" };
-
-    await fireInstalled();
-
-    expect(removedIds).toContain(1);
-    expect(addedRules).toHaveLength(0);
-  });
-});
-
-// ── onStartup ────────────────────────────────────────────────────────────────
-
-describe("onStartup", () => {
-  test("restores baggage rule from storage", async () => {
-    storedData = { enabled: true, namespace: "okteto-admin" };
+  test("onStartup restores the rule from storage", async () => {
+    storedData = { enabled: true, namespace: "okteto-admin", domains: DOMAINS };
 
     await fireStartup();
 
@@ -119,24 +118,73 @@ describe("onStartup", () => {
       "okteto-divert=okteto-admin"
     );
   });
+});
 
-  test("does not add rule when not enabled", async () => {
-    storedData = { enabled: false, namespace: "okteto-admin" };
+// ── injection scope ──────────────────────────────────────────────────────────
 
-    await fireStartup();
+describe("injection scope", () => {
+  test("rule is limited to the configured domains", async () => {
+    await fireMessage({
+      action: "setState",
+      enabled: true,
+      namespace: "movies-catalog",
+      domains: ["okteto.example.com", "apps.example.com"],
+    });
 
-    expect(addedRules).toHaveLength(0);
+    expect(addedRules[0].condition.requestDomains).toEqual([
+      "okteto.example.com",
+      "apps.example.com",
+    ]);
+  });
+
+  test("rule never matches every host", async () => {
+    await fireMessage({
+      action: "setState",
+      enabled: true,
+      namespace: "movies-catalog",
+      domains: DOMAINS,
+    });
+
+    const { condition } = addedRules[0];
+    expect(condition.requestDomains.length).toBeGreaterThan(0);
+    expect(condition.urlFilter).toBeUndefined();
+    expect(condition.initiatorDomains).toBeUndefined();
+  });
+
+  test("rule covers all expected resource types", async () => {
+    await fireMessage({
+      action: "setState",
+      enabled: true,
+      namespace: "x",
+      domains: DOMAINS,
+    });
+
+    expect(addedRules[0].condition.resourceTypes).toEqual([
+      "main_frame",
+      "sub_frame",
+      "stylesheet",
+      "script",
+      "image",
+      "font",
+      "object",
+      "xmlhttprequest",
+      "ping",
+      "media",
+      "websocket",
+      "other",
+    ]);
   });
 });
 
 // ── message handler ───────────────────────────────────────────────────────────
 
 describe("setState message", () => {
-  test("adds rule when enabled=true and namespace provided", async () => {
+  test("adds the rule and persists state", async () => {
     const response = await fireMessage({
       action: "setState",
       enabled: true,
       namespace: "full-environment",
+      domains: DOMAINS,
     });
 
     expect(response).toEqual({ ok: true });
@@ -144,13 +192,19 @@ describe("setState message", () => {
     expect(addedRules[0].action.requestHeaders[0].value).toBe(
       "okteto-divert=full-environment"
     );
+    expect(chrome.storage.local.set).toHaveBeenCalledWith({
+      enabled: true,
+      namespace: "full-environment",
+      domains: DOMAINS,
+    });
   });
 
-  test("removes rule when enabled=false", async () => {
+  test("removes the rule when disabled", async () => {
     const response = await fireMessage({
       action: "setState",
       enabled: false,
       namespace: "full-environment",
+      domains: DOMAINS,
     });
 
     expect(response).toEqual({ ok: true });
@@ -158,47 +212,70 @@ describe("setState message", () => {
     expect(removedIds).toContain(1);
   });
 
-  test("persists enabled and namespace to storage", async () => {
+  test("removes and adds in a single atomic update", async () => {
     await fireMessage({
       action: "setState",
       enabled: true,
-      namespace: "movies-rentals",
+      namespace: "x",
+      domains: DOMAINS,
     });
 
-    expect(chrome.storage.local.set).toHaveBeenCalledWith(
-      expect.objectContaining({ enabled: true, namespace: "movies-rentals" })
-    );
-  });
-
-  test("rule covers all expected resource types", async () => {
-    await fireMessage({ action: "setState", enabled: true, namespace: "x" });
-
-    const rule = addedRules[0];
-    expect(rule.condition.resourceTypes).toEqual(
-      expect.arrayContaining([
-        "main_frame",
-        "xmlhttprequest",
-        "websocket",
-        "script",
-        "stylesheet",
-      ])
-    );
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0].removeRuleIds).toEqual([1]);
+    expect(updateCalls[0].addRules).toHaveLength(1);
   });
 
   test("rule uses correct priority and ID", async () => {
-    await fireMessage({ action: "setState", enabled: true, namespace: "x" });
+    await fireMessage({
+      action: "setState",
+      enabled: true,
+      namespace: "x",
+      domains: DOMAINS,
+    });
 
     expect(addedRules[0].id).toBe(1);
     expect(addedRules[0].priority).toBe(1);
   });
 
-  test("ignores unknown action messages", async () => {
-    // Should not throw or add rules
-    const messageHandlerCount = messageListeners.length;
-    expect(messageHandlerCount).toBeGreaterThan(0);
+  test("rejects a namespace that could forge header content", async () => {
+    const response = await fireMessage({
+      action: "setState",
+      enabled: true,
+      namespace: "evil\r\nX-Injected: 1",
+      domains: DOMAINS,
+    });
 
-    // Simulate an unknown action — listeners return undefined (no sendResponse)
-    messageListeners.forEach((fn) => fn({ action: "unknown" }, {}, jest.fn()));
+    expect(response).toMatchObject({ ok: false });
+    expect(response.error).toMatch(/Invalid space name/);
     expect(addedRules).toHaveLength(0);
+  });
+
+  test("reports failures instead of persisting a state that was not applied", async () => {
+    updateShouldFail = "MAX_NUMBER_OF_DYNAMIC_RULES exceeded";
+
+    const response = await fireMessage({
+      action: "setState",
+      enabled: true,
+      namespace: "x",
+      domains: DOMAINS,
+    });
+
+    expect(response).toEqual({
+      ok: false,
+      error: "MAX_NUMBER_OF_DYNAMIC_RULES exceeded",
+    });
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  test("ignores unknown messages without holding the channel open", async () => {
+    const sendResponse = jest.fn();
+
+    const returned = messageListeners.map((fn) =>
+      fn({ action: "unknown" }, {}, sendResponse)
+    );
+
+    expect(returned.every((r) => r !== true)).toBe(true);
+    expect(sendResponse).not.toHaveBeenCalled();
+    expect(chrome.declarativeNetRequest.updateDynamicRules).not.toHaveBeenCalled();
   });
 });
