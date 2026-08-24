@@ -201,9 +201,11 @@ async function fetchSpaces(instanceUrl, token, options = {}) {
     });
   } catch (err) {
     if (err.name === "AbortError") {
-      throw new Error(`No response from ${base} after ${Math.round(timeoutMs / 1000)}s.`);
+      throw new Error(`No response from ${base} after ${Math.round(timeoutMs / 1000)}s.`, {
+        cause: err,
+      });
     }
-    throw new Error(`Could not reach ${base}: ${err.message}`);
+    throw new Error(`Could not reach ${base}: ${err.message}`, { cause: err });
   } finally {
     if (timer) clearTimeout(timer);
   }
