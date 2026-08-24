@@ -89,7 +89,8 @@ jobs:
             popup.html \
             popup.css \
             popup.js \
-            api.js
+            api.js \
+            schema.json
           zip -r "${ZIP_NAME}" icons/
           sha256sum "${ZIP_NAME}" | tee "${ZIP_NAME}.sha256"
           {

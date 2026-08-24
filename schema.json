@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Okteto extension policy",
+  "description": "Administrator-provided configuration, delivered through Chrome's ExtensionSettings/3rdparty policy. Tokens are never policy-provided: each user enters their own.",
+  "type": "object",
+  "properties": {
+    "instanceUrl": {
+      "title": "Okteto instance URL",
+      "description": "The Okteto instance the extension queries for spaces, e.g. https://okteto.example.com. Must use https.",
+      "type": "string"
+    },
+    "domains": {
+      "title": "Domains to inject into",
+      "description": "Hostnames whose requests (and their subdomains') receive the baggage header. Defaults to the instance host when omitted.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "allowUserOverride": {
+      "title": "Allow users to change these settings",
+      "description": "When false, the instance URL and domains above are enforced and the popup shows them read-only.",
+      "type": "boolean"
+    }
+  },
+  "additionalProperties": false
+}

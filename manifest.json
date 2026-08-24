@@ -7,6 +7,9 @@
   "minimum_chrome_version": "102",
   "permissions": ["declarativeNetRequestWithHostAccess", "storage"],
   "optional_host_permissions": ["*://*/*"],
+  "storage": {
+    "managed_schema": "schema.json"
+  },
   "background": {
     "service_worker": "background.js"
   },
