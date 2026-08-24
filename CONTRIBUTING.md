@@ -71,7 +71,8 @@ npx jest --watch
 ├── popup.css            # Popup styles
 ├── icons/               # Extension icons (16px, 48px, 128px)
 ├── scripts/
-│   └── validate-manifest.js  # Manifest checks run in CI and at release time
+│   ├── validate-manifest.js  # Manifest checks run in CI and at release time
+│   └── publish-webstore.sh   # Chrome Web Store upload + publish (release only)
 ├── tests/               # Jest test suite
 └── .github/workflows/
     ├── ci.yml           # Lint, manifest validation, tests
@@ -121,6 +122,9 @@ Releases are fully automated via GitHub Actions. To publish a new version:
    - Patch `manifest.json` with the tag version and re-validate it
    - Package the extension into a zip (only production files) and compute its SHA-256
    - Create a GitHub Release with the zip, its checksum, and auto-generated release notes
+   - Upload and publish the same zip to the Chrome Web Store, if the store
+     secrets are configured (the step is skipped otherwise). See
+     [docs/chrome-web-store.md](docs/chrome-web-store.md).
 
 You can also trigger the workflow manually from the **Actions** tab in GitHub using `workflow_dispatch`.
 

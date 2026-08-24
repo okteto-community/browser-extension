@@ -40,6 +40,15 @@ if (manifest.host_permissions?.length) {
   );
 }
 
+// The Chrome Web Store rejects a package whose description is empty or longer
+// than 132 characters, at upload time rather than at review time.
+const description = manifest.description || "";
+if (!description || description.length > 132) {
+  errors.push(
+    `description must be 1-132 characters for the Chrome Web Store (found ${description.length})`
+  );
+}
+
 if (manifest.permissions?.includes("declarativeNetRequest")) {
   errors.push(
     "use declarativeNetRequestWithHostAccess so rules only apply to granted hosts"
