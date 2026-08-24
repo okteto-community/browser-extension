@@ -8,6 +8,10 @@ A Chrome extension that injects a `baggage: okteto-divert=<namespace>` header in
 
 ## Installation
 
+> Once the extension is listed on the Chrome Web Store, installing from the
+> store link is the recommended path: it is one click and Chrome keeps it
+> updated. Until then, use the release zip below.
+
 ### Download the latest release
 
 1. Go to the [Releases](https://github.com/okteto-community/browser-extension/releases) page and download the latest `okteto-extension-vX.Y.Z.zip`.
@@ -57,6 +61,7 @@ the administrator side.
 
 - The Personal Access Token is stored unencrypted in `chrome.storage.local`, like all Chrome extension storage. Clear it when you're done on a shared machine.
 - Host access is requested per domain, so the extension cannot read or modify traffic to any other site.
+- Nothing leaves your machine except the API call to your own instance. See [PRIVACY.md](PRIVACY.md).
 
 ---
 
@@ -70,3 +75,9 @@ the administrator side.
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, how to run tests, and how to publish a release.
+
+---
+
+## License
+
+[Apache License 2.0](LICENSE).

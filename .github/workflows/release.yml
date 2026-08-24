@@ -125,3 +125,32 @@ jobs:
 
             ---
             *Release notes are auto-generated from commits since the last release.*
+
+      - name: Check for Chrome Web Store credentials
+        id: cws
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${CWS_EXTENSION_ID}" ] && [ -n "${CWS_CLIENT_ID}" ] \
+            && [ -n "${CWS_CLIENT_SECRET}" ] && [ -n "${CWS_REFRESH_TOKEN}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Chrome Web Store secrets are not set; skipping store publish."
+          fi
+
+      - name: Publish to the Chrome Web Store
+        if: steps.cws.outputs.configured == 'true'
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          # "default" publishes to everyone the listing's visibility allows;
+          # "trustedTesters" ships to the tester group instead.
+          PUBLISH_TARGET: ${{ vars.CWS_PUBLISH_TARGET || 'default' }}
+        run: ./scripts/publish-webstore.sh "${ZIP_NAME}"
